@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Campus Resources Directory | Facilities & Labs</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+    <link href="css/style.css" rel="stylesheet">
+</head>
+<body class="bg-page">
+
+    <div id="navbar-placeholder"></div>
+
+    <main class="py-4">
+        <div class="container">
+            <!-- Header -->
+            <div class="d-flex flex-wrap justify-content-between align-items-center mb-4 gap-3">
+                <div>
+                    <h2 class="fw-bold mb-1">Campus Resource Catalog</h2>
+                    <p class="text-secondary small mb-0">Browse and inspect institutional facilities, computer laboratories, and auditoriums.</p>
+                </div>
+                <div id="newResourceAdminBtn"></div>
+            </div>
+
+            <!-- Filter Card -->
+            <div class="card-custom p-4 bg-white mb-4 border-0 shadow-sm">
+                <form id="filterForm" class="row g-3 align-items-end">
+                    <div class="col-md-4">
+                        <label for="searchQuery" class="form-label">Search Facility</label>
+                        <div class="input-group">
+                            <span class="input-group-text bg-light border-end-0"><i class="bi bi-search text-muted"></i></span>
+                            <input type="text" class="form-control border-start-0" id="searchQuery" placeholder="Search by name, location, equipment...">
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <label for="categoryFilter" class="form-label">Category</label>
+                        <select class="form-select" id="categoryFilter">
+                            <option value="">All Categories</option>
+                        </select>
+                    </div>
+                    <div class="col-md-2">
+                        <label for="capacityFilter" class="form-label">Min Capacity</label>
+                        <select class="form-select" id="capacityFilter">
+                            <option value="">Any Capacity</option>
+                            <option value="20">20+ People</option>
+                            <option value="40">40+ People</option>
+                            <option value="60">60+ People</option>
+                            <option value="100">100+ People</option>
+                            <option value="250">250+ People</option>
+                        </select>
+                    </div>
+                    <div class="col-md-3">
+                        <label for="statusFilter" class="form-label">Operational Status</label>
+                        <select class="form-select" id="statusFilter">
+                            <option value="">All Statuses</option>
+                            <option value="AVAILABLE" selected>Available</option>
+                            <option value="MAINTENANCE">Maintenance</option>
+                            <option value="INACTIVE">Inactive</option>
+                        </select>
+                    </div>
+                </form>
+            </div>
+
+            <!-- Results Meta & Sorter -->
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <div class="small text-muted" id="resultsCount">Loading resources...</div>
+                <div class="d-flex align-items-center gap-2">
+                    <label for="sortOrder" class="small text-muted text-nowrap mb-0">Sort By:</label>
+                    <select class="form-select form-select-sm" id="sortOrder" style="width:160px;">
+                        <option value="name_asc">Name (A-Z)</option>
+                        <option value="name_desc">Name (Z-A)</option>
+                        <option value="cap_asc">Capacity (Low-High)</option>
+                        <option value="cap_desc">Capacity (High-Low)</option>
+                    </select>
+                </div>
+            </div>
+
+            <!-- Resources Grid -->
+            <div class="row g-4" id="resourcesGrid">
+                <div class="col-12 text-center py-5 text-muted">
+                    <div class="spinner-border text-primary" role="status"></div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <div id="footer-placeholder"></div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="js/api.js"></script>
+    <script src="js/auth.js"></script>
+    <script src="js/common.js"></script>
+    <script>
+        let allResourcesCache = [];
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            // Admin button if logged in as Admin
+            if (Auth.getRole() === 'ADMIN') {
+                document.getElementById('newResourceAdminBtn').innerHTML = `
+                    <a href="admin-resources.html" class="btn btn-primary-custom">
+                        <i class="bi bi-gear-fill me-1"></i> Manage Facilities
+                    </a>
+                `;
+            }
+
+            // Populate Category Filter
+            try {
+                const catRes = await API.getCategories();
+                if (catRes.success && catRes.data) {
+                    const catSelect = document.getElementById('categoryFilter');
+                    const preselectedCat = Common.getUrlParam('categoryId');
+                    catRes.data.forEach(c => {
+                        const opt = document.createElement('option');
+                        opt.value = c.categoryId;
+                        opt.textContent = c.categoryName;
+                        if (preselectedCat && String(c.categoryId) === String(preselectedCat)) {
+                            opt.selected = true;
+                        }
+                        catSelect.appendChild(opt);
+                    });
+                }
+            } catch (err) {
+                console.error(err);
+            }
+
+            // Fetch resources
+            await loadResources();
+
+            // Event Listeners for Filtering & Sorting
+            document.getElementById('searchQuery').addEventListener('input', debounce(loadResources, 300));
+            document.getElementById('categoryFilter').addEventListener('change', loadResources);
+            document.getElementById('capacityFilter').addEventListener('change', loadResources);
+            document.getElementById('statusFilter').addEventListener('change', loadResources);
+            document.getElementById('sortOrder').addEventListener('change', applySortAndRender);
+        });
+
+        async function loadResources() {
+            const search = document.getElementById('searchQuery').value.trim();
+            const categoryId = document.getElementById('categoryFilter').value;
+            const minCapacity = document.getElementById('capacityFilter').value;
+            const status = document.getElementById('statusFilter').value;
+
+            try {
+                const res = await API.getResources({
+                    search: search || undefined,
+                    categoryId: categoryId || undefined,
+                    minCapacity: minCapacity || undefined,
+                    status: status || undefined
+                });
+
+                if (res.success && res.data) {
+                    allResourcesCache = res.data;
+                    applySortAndRender();
+                }
+            } catch (err) {
+                document.getElementById('resourcesGrid').innerHTML = `
+                    <div class="col-12 text-center py-5 text-danger">
+                        <i class="bi bi-exclamation-triangle fs-1"></i>
+                        <p class="mt-2">${Common.escapeHtml(err.message || 'Failed to load resources')}</p>
+                    </div>
+                `;
+            }
+        }
+
+        function applySortAndRender() {
+            const sortVal = document.getElementById('sortOrder').value;
+            let list = [...allResourcesCache];
+
+            if (sortVal === 'name_asc') {
+                list.sort((a, b) => a.resourceName.localeCompare(b.resourceName));
+            } else if (sortVal === 'name_desc') {
+                list.sort((a, b) => b.resourceName.localeCompare(a.resourceName));
+            } else if (sortVal === 'cap_asc') {
+                list.sort((a, b) => a.capacity - b.capacity);
+            } else if (sortVal === 'cap_desc') {
+                list.sort((a, b) => b.capacity - a.capacity);
+            }
+
+            document.getElementById('resultsCount').textContent = `Showing ${list.length} campus facility ${list.length === 1 ? 'record' : 'records'}`;
+
+            const grid = document.getElementById('resourcesGrid');
+            if (list.length === 0) {
+                grid.innerHTML = `
+                    <div class="col-12 text-center py-5">
+                        <div class="text-muted fs-5 mb-2"><i class="bi bi-search me-2"></i>No matching facilities found.</div>
+                        <p class="small text-muted">Try adjusting your category filter, capacity threshold, or search keyword.</p>
+                    </div>
+                `;
+                return;
+            }
+
+            grid.innerHTML = list.map(r => `
+                <div class="col-md-6 col-lg-4">
+                    <div class="card-custom card-resource">
+                        <img src="${r.imageUrl || 'https://images.unsplash.com/photo-1562774053-701939374585?w=600&auto=format&fit=crop&q=80'}" 
+                             alt="${Common.escapeHtml(r.resourceName)}" 
+                             class="card-resource-img"
+                             onerror="this.src='https://images.unsplash.com/photo-1497366216548-37526070297c?w=600&auto=format&fit=crop&q=80'">
+                        <div class="card-resource-body">
+                            <div class="d-flex justify-content-between align-items-start mb-2">
+                                <span class="badge bg-light text-primary border small fw-semibold">
+                                    <i class="bi ${r.categoryIcon || 'bi-building'} me-1"></i> ${Common.escapeHtml(r.categoryName || 'General')}
+                                </span>
+                                <span class="badge-status badge-status-${r.status.toLowerCase()}">${r.status}</span>
+                            </div>
+                            <h5 class="fw-bold text-dark mb-1">${Common.escapeHtml(r.resourceName)}</h5>
+                            <p class="text-muted small mb-2"><i class="bi bi-geo-alt-fill text-danger me-1"></i> ${Common.escapeHtml(r.location)}</p>
+                            <p class="text-secondary small mb-3 flex-grow-1" style="display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden;">
+                                ${Common.escapeHtml(r.description || 'Modern facility equipped for academic use.')}
+                            </p>
+                            
+                            <div class="d-flex justify-content-between align-items-center py-2 border-top border-bottom mb-3 text-muted small">
+                                <span><i class="bi bi-people-fill text-primary me-1"></i> Capacity: <strong>${r.capacity}</strong></span>
+                                <span><i class="bi bi-${r.status === 'AVAILABLE' ? 'check-circle-fill text-success' : 'slash-circle text-muted'} me-1"></i> ${r.status === 'AVAILABLE' ? (Auth.getRole() === 'STUDENT' ? 'Schedule Open' : 'Bookable') : 'Reserved'}</span>
+                            </div>
+
+                            <div class="d-flex gap-2">
+                                <a href="resource-details.html?id=${r.resourceId}" class="btn btn-outline-custom flex-grow-1 btn-sm">
+                                    <i class="bi bi-eye me-1"></i> View Details
+                                </a>
+                                ${r.status === 'AVAILABLE' ? (
+                                    Auth.getRole() === 'STUDENT' ? `
+                                        <a href="resource-details.html?id=${r.resourceId}" class="btn btn-outline-primary flex-grow-1 btn-sm text-center">
+                                            <i class="bi bi-calendar-week me-1"></i> View Schedule
+                                        </a>
+                                    ` : `
+                                        <a href="booking.html?resourceId=${r.resourceId}" class="btn btn-primary-custom flex-grow-1 btn-sm text-center">
+                                            <i class="bi bi-calendar-plus me-1"></i> Book Now
+                                        </a>
+                                    `
+                                ) : `
+                                    <button class="btn btn-secondary flex-grow-1 btn-sm" disabled>Unavailable</button>
+                                `}
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function debounce(func, wait) {
+            let timeout;
+            return function(...args) {
+                clearTimeout(timeout);
+                timeout = setTimeout(() => func.apply(this, args), wait);
+            };
+        }
+    </script>
+</body>
+</html>

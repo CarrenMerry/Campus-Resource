@@ -1,0 +1,4 @@
+-------------------------------------------------------------------------------
+Test set: com.campusbooking.service.AuthServiceSecurityTest
+-------------------------------------------------------------------------------
+Tests run: 13, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 6.160 s -- in com.campusbooking.service.AuthServiceSecurityTest

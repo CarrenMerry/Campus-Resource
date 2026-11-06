@@ -1,0 +1,317 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Book Facility | Campus Resource Booking</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+    <link href="css/style.css" rel="stylesheet">
+</head>
+<body class="bg-page">
+
+    <div id="navbar-placeholder"></div>
+
+    <main class="py-4">
+        <div class="container">
+            <div class="row justify-content-center">
+                <div class="col-lg-8">
+                    <div class="card-custom p-4 p-md-5 bg-white shadow-sm border-0 mb-4">
+                        <div class="d-flex align-items-center gap-3 mb-4">
+                            <div class="brand-icon-badge" style="width:48px;height:48px;font-size:1.4rem;">
+                                <i class="bi bi-calendar2-plus-fill"></i>
+                            </div>
+                            <div>
+                                <h3 class="fw-bold mb-0">Reserve Campus Resource</h3>
+                                <p class="text-secondary small mb-0">Fill in the reservation schedule. Conflicts will be verified in real-time.</p>
+                            </div>
+                        </div>
+
+                        <!-- Student View-Only Alert Box -->
+                        <div id="studentRestrictedAlert" class="alert alert-warning d-none mb-4" role="alert">
+                            <div class="d-flex align-items-center">
+                                <i class="bi bi-info-circle-fill fs-3 me-3 text-warning"></i>
+                                <div>
+                                    <h6 class="fw-bold mb-1">Student View-Only Mode</h6>
+                                    <div class="small">Campus resource reservations are restricted to <strong>Faculty</strong> and <strong>Administrators</strong>. You can verify facility availability and view schedules, but reservation creation is disabled for student accounts.</div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Realtime Conflict Alert Box -->
+                        <div id="conflictAlert" class="alert alert-danger d-none" role="alert">
+                            <div class="d-flex align-items-center">
+                                <i class="bi bi-exclamation-triangle-fill fs-4 me-2"></i>
+                                <div id="conflictAlertMsg">Double-booking detected for requested interval.</div>
+                            </div>
+                        </div>
+
+                        <form id="bookingForm" novalidate>
+                            <!-- Resource Dropdown -->
+                            <div class="mb-3">
+                                <label for="resourceSelect" class="form-label">Selected Facility <span class="text-danger">*</span></label>
+                                <select class="form-select" id="resourceSelect" required>
+                                    <option value="">Select a campus facility...</option>
+                                </select>
+                                <div class="form-text small" id="resourceMeta">Select a resource to inspect capacity and limits.</div>
+                            </div>
+
+                            <!-- Date & Time Window -->
+                            <div class="row g-3 mb-3">
+                                <div class="col-md-4">
+                                    <label for="bookingDate" class="form-label">Reservation Date <span class="text-danger">*</span></label>
+                                    <input type="date" class="form-control" id="bookingDate" required>
+                                </div>
+                                <div class="col-md-4">
+                                    <label for="startTime" class="form-label">Start Time <span class="text-danger">*</span></label>
+                                    <input type="time" class="form-control" id="startTime" step="900" required>
+                                </div>
+                                <div class="col-md-4">
+                                    <label for="endTime" class="form-label">End Time <span class="text-danger">*</span></label>
+                                    <input type="time" class="form-control" id="endTime" step="900" required>
+                                </div>
+                            </div>
+
+                            <!-- Live Availability Check Banner -->
+                            <div id="liveCheckBanner" class="p-3 rounded mb-3 bg-light border d-flex justify-content-between align-items-center">
+                                <div class="d-flex align-items-center gap-2">
+                                    <span id="checkIcon"><i class="bi bi-info-circle text-primary"></i></span>
+                                    <span id="checkText" class="small fw-medium text-secondary">Fill date and times to verify availability.</span>
+                                </div>
+                                <button type="button" class="btn btn-sm btn-outline-secondary py-1" id="btnManualCheck">
+                                    <i class="bi bi-arrow-repeat"></i> Verify Slot
+                                </button>
+                            </div>
+
+                            <!-- Attendees & Purpose -->
+                            <div class="row g-3 mb-4">
+                                <div class="col-md-4">
+                                    <label for="attendeesCount" class="form-label">Estimated Attendees</label>
+                                    <input type="number" class="form-control" id="attendeesCount" value="1" min="1" max="1000">
+                                </div>
+                                <div class="col-md-8">
+                                    <label for="purpose" class="form-label">Purpose of Reservation <span class="text-danger">*</span></label>
+                                    <input type="text" class="form-control" id="purpose" placeholder="e.g., MCA Practical Examination / Guest Lecture" minlength="5" required>
+                                </div>
+                            </div>
+
+                            <!-- User Tier Policies Reminder -->
+                            <div class="card p-3 bg-light border-0 rounded-3 mb-4">
+                                <div class="d-flex align-items-center gap-2 mb-1">
+                                    <i class="bi bi-shield-check text-primary"></i>
+                                    <strong class="small">Institutional Reservation Rules</strong>
+                                </div>
+                                <ul class="small text-muted mb-0 ps-3">
+                                    <li><strong>Access Permission:</strong> Reservations are restricted to <strong>Faculty</strong> and <strong>Administrators</strong>.</li>
+                                    <li><strong>Students:</strong> View-only access to timetables and resource schedules.</li>
+                                    <li><strong>Faculty:</strong> Up to 8 hours per session with fast-track approval.</li>
+                                    <li><strong>Zero Double-Booking:</strong> Validated strictly in backend via <code>existing.start &lt; requested.end AND existing.end &gt; requested.start</code>.</li>
+                                </ul>
+                            </div>
+
+                            <div class="d-flex gap-2">
+                                <button type="submit" class="btn btn-primary-custom flex-grow-1 py-2 fw-semibold" id="submitBookingBtn">
+                                    <i class="bi bi-check-circle-fill me-1"></i> Submit Booking Reservation
+                                </button>
+                                <a href="resources.html" class="btn btn-outline-custom">Cancel</a>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <div id="footer-placeholder"></div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="js/api.js"></script>
+    <script src="js/auth.js"></script>
+    <script src="js/common.js"></script>
+    <script>
+        let resourcesMap = {};
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            if (!Auth.requireAuth(['STUDENT', 'FACULTY', 'ADMIN'])) return;
+
+            const isStudent = Auth.getRole() === 'STUDENT';
+            if (isStudent) {
+                const studentAlert = document.getElementById('studentRestrictedAlert');
+                if (studentAlert) studentAlert.classList.remove('d-none');
+                const submitBtn = document.getElementById('submitBookingBtn');
+                if (submitBtn) {
+                    submitBtn.disabled = true;
+                    submitBtn.className = 'btn btn-secondary flex-grow-1 py-2 fw-semibold';
+                    submitBtn.innerHTML = '<i class="bi bi-lock-fill me-1"></i> Reservations Restricted to Faculty & Admin';
+                }
+            }
+
+            // Set minimum date to today
+            const todayStr = new Date().toISOString().split('T')[0];
+            const dateInput = document.getElementById('bookingDate');
+            dateInput.min = todayStr;
+            dateInput.value = todayStr;
+
+            // Pre-fill sensible default hours (e.g. 10:00 to 12:00)
+            document.getElementById('startTime').value = '10:00';
+            document.getElementById('endTime').value = '12:00';
+
+            const preselectedId = Common.getUrlParam('resourceId');
+
+            try {
+                const res = await API.getResources();
+                if (res.success && res.data) {
+                    const select = document.getElementById('resourceSelect');
+                    res.data.forEach(r => {
+                        resourcesMap[r.resourceId] = r;
+                        const opt = document.createElement('option');
+                        opt.value = r.resourceId;
+                        opt.textContent = `${r.resourceName} (${r.categoryName || 'General'} - Cap: ${r.capacity})`;
+                        if (r.status !== 'AVAILABLE') {
+                            opt.disabled = true;
+                            opt.textContent += ` [${r.status}]`;
+                        }
+                        if (preselectedId && String(r.resourceId) === String(preselectedId)) {
+                            opt.selected = true;
+                        }
+                        select.appendChild(opt);
+                    });
+
+                    updateResourceMeta();
+                    checkAvailabilityLive();
+                }
+            } catch (err) {
+                console.error(err);
+            }
+
+            document.getElementById('resourceSelect').addEventListener('change', () => {
+                updateResourceMeta();
+                checkAvailabilityLive();
+            });
+
+            document.getElementById('bookingDate').addEventListener('change', checkAvailabilityLive);
+            document.getElementById('startTime').addEventListener('change', checkAvailabilityLive);
+            document.getElementById('endTime').addEventListener('change', checkAvailabilityLive);
+            document.getElementById('btnManualCheck').addEventListener('click', checkAvailabilityLive);
+
+            // Form Submit
+            document.getElementById('bookingForm').addEventListener('submit', handleBookingSubmit);
+        });
+
+        function updateResourceMeta() {
+            const id = document.getElementById('resourceSelect').value;
+            const metaDiv = document.getElementById('resourceMeta');
+            if (id && resourcesMap[id]) {
+                const r = resourcesMap[id];
+                metaDiv.innerHTML = `<span class="text-primary fw-medium"><i class="bi bi-geo-alt"></i> ${Common.escapeHtml(r.location)}</span> • Capacity: <strong>${r.capacity}</strong> • Status: <span class="badge-status badge-status-${r.status.toLowerCase()}">${r.status}</span>`;
+            } else {
+                metaDiv.textContent = 'Select a resource to inspect capacity and limits.';
+            }
+        }
+
+        async function checkAvailabilityLive() {
+            const resourceId = document.getElementById('resourceSelect').value;
+            const date = document.getElementById('bookingDate').value;
+            const startTime = document.getElementById('startTime').value;
+            const endTime = document.getElementById('endTime').value;
+
+            const iconSpan = document.getElementById('checkIcon');
+            const textSpan = document.getElementById('checkText');
+            const banner = document.getElementById('liveCheckBanner');
+
+            if (!resourceId || !date || !startTime || !endTime) {
+                iconSpan.innerHTML = '<i class="bi bi-info-circle text-primary"></i>';
+                textSpan.textContent = 'Fill facility, date, and times to verify availability.';
+                banner.className = 'p-3 rounded mb-3 bg-light border d-flex justify-content-between align-items-center';
+                return;
+            }
+
+            if (startTime >= endTime) {
+                iconSpan.innerHTML = '<i class="bi bi-exclamation-triangle text-warning"></i>';
+                textSpan.textContent = 'Start time must be strictly before end time.';
+                banner.className = 'p-3 rounded mb-3 bg-warning-subtle border border-warning d-flex justify-content-between align-items-center';
+                return;
+            }
+
+            iconSpan.innerHTML = '<div class="spinner-border spinner-border-sm text-primary" role="status"></div>';
+            textSpan.textContent = 'Verifying time slot availability with backend...';
+
+            try {
+                const res = await API.checkAvailability(resourceId, date, startTime, endTime);
+                if (res.success && res.data) {
+                    if (res.data.available) {
+                        iconSpan.innerHTML = '<i class="bi bi-check-circle-fill text-success fs-5"></i>';
+                        textSpan.innerHTML = '<strong class="text-success">Time Slot Available!</strong> No scheduling conflicts detected.';
+                        banner.className = 'p-3 rounded mb-3 bg-success-subtle border border-success d-flex justify-content-between align-items-center';
+                    } else {
+                        iconSpan.innerHTML = '<i class="bi bi-x-circle-fill text-danger fs-5"></i>';
+                        textSpan.innerHTML = '<strong class="text-danger">Slot Booked / Unavailable!</strong> An active reservation overlaps this time.';
+                        banner.className = 'p-3 rounded mb-3 bg-danger-subtle border border-danger d-flex justify-content-between align-items-center';
+                    }
+                }
+            } catch (err) {
+                iconSpan.innerHTML = '<i class="bi bi-exclamation-circle text-secondary"></i>';
+                textSpan.textContent = err.message || 'Could not verify slot at this time.';
+            }
+        }
+
+        async function handleBookingSubmit(e) {
+            e.preventDefault();
+            if (Auth.getRole() === 'STUDENT') {
+                Common.showToast('Facility reservations are restricted to Faculty and Administrators. Students have view-only access.', 'warning');
+                return;
+            }
+            const conflictAlert = document.getElementById('conflictAlert');
+            conflictAlert.classList.add('d-none');
+
+            const resourceId = document.getElementById('resourceSelect').value;
+            const bookingDate = document.getElementById('bookingDate').value;
+            const startTime = document.getElementById('startTime').value;
+            const endTime = document.getElementById('endTime').value;
+            const purpose = document.getElementById('purpose').value.trim();
+            const attendeesCount = parseInt(document.getElementById('attendeesCount').value, 10) || 1;
+
+            if (!resourceId || !bookingDate || !startTime || !endTime || !purpose) {
+                Common.showToast('Please fill all mandatory fields.', 'warning');
+                return;
+            }
+
+            if (startTime >= endTime) {
+                Common.showToast('Start time must be before end time.', 'warning');
+                return;
+            }
+
+            const payload = {
+                resourceId: parseInt(resourceId, 10),
+                bookingDate,
+                startTime,
+                endTime,
+                purpose,
+                attendeesCount
+            };
+
+            const submitBtn = document.getElementById('submitBookingBtn');
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-2"></span> Reserving...';
+
+            try {
+                const res = await API.createBooking(payload);
+                if (res.success) {
+                    Common.showToast('Reservation created successfully!', 'success');
+                    setTimeout(() => {
+                        window.location.href = 'my-bookings.html';
+                    }, 1000);
+                }
+            } catch (err) {
+                submitBtn.disabled = false;
+                submitBtn.innerHTML = '<i class="bi bi-check-circle-fill me-1"></i> Submit Booking Reservation';
+
+                // Display Conflict message in alert banner
+                conflictAlert.classList.remove('d-none');
+                document.getElementById('conflictAlertMsg').textContent = err.message || 'Double booking conflict detected.';
+                Common.showToast(err.message || 'Booking conflict detected.', 'error');
+            }
+        }
+    </script>
+</body>
+</html>

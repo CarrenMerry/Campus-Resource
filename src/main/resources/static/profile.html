@@ -1,0 +1,147 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>My Profile | Campus Resource Booking</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
+    <link href="css/style.css" rel="stylesheet">
+</head>
+<body class="bg-page">
+
+    <div id="navbar-placeholder"></div>
+
+    <main class="py-4">
+        <div class="container">
+            <div class="row justify-content-center">
+                <div class="col-lg-8">
+                    <!-- Profile Card -->
+                    <div class="card-custom p-4 bg-white mb-4 border-0 shadow-sm">
+                        <div class="d-flex align-items-center gap-3 pb-3 border-bottom mb-4">
+                            <div class="brand-icon-badge" style="width:56px;height:56px;font-size:1.6rem;">
+                                <i class="bi bi-person-circle"></i>
+                            </div>
+                            <div>
+                                <h3 class="fw-bold mb-0" id="profDisplayName">User Name</h3>
+                                <p class="text-secondary small mb-0" id="profRoleBadge">Role</p>
+                            </div>
+                        </div>
+
+                        <!-- Update Profile Info Form -->
+                        <h5 class="fw-bold mb-3"><i class="bi bi-person-lines-fill text-primary me-2"></i> Contact & Department Details</h5>
+                        <form id="updateProfileForm" class="row g-3 mb-5">
+                            <div class="col-md-6">
+                                <label class="form-label">Full Name</label>
+                                <input type="text" class="form-control" id="pName" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Email (Read Only)</label>
+                                <input type="email" class="form-control bg-light" id="pEmail" readonly>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Phone Number</label>
+                                <input type="tel" class="form-control" id="pPhone">
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">Academic Department</label>
+                                <input type="text" class="form-control" id="pDepartment">
+                            </div>
+                            <div class="col-12 text-end">
+                                <button type="submit" class="btn btn-primary-custom" id="saveProfileBtn">
+                                    <i class="bi bi-check2 me-1"></i> Save Profile
+                                </button>
+                            </div>
+                        </form>
+
+                        <!-- Change Password Form -->
+                        <h5 class="fw-bold mb-3"><i class="bi bi-key-fill text-primary me-2"></i> Security & Password</h5>
+                        <form id="changePasswordForm" class="row g-3">
+                            <div class="col-md-6">
+                                <label class="form-label">Current Password <span class="text-danger">*</span></label>
+                                <input type="password" class="form-control" id="currentPassword" required>
+                            </div>
+                            <div class="col-md-6">
+                                <label class="form-label">New Password <span class="text-danger">*</span></label>
+                                <input type="password" class="form-control" id="newPassword" minlength="6" required>
+                            </div>
+                            <div class="col-12 text-end">
+                                <button type="submit" class="btn btn-outline-custom" id="changePwdBtn">
+                                    <i class="bi bi-shield-lock me-1"></i> Update Password
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <div id="footer-placeholder"></div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="js/api.js"></script>
+    <script src="js/auth.js"></script>
+    <script src="js/common.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', async () => {
+            if (!Auth.requireAuth()) return;
+
+            try {
+                const res = await API.getProfile();
+                if (res.success && res.data) {
+                    const u = res.data;
+                    document.getElementById('profDisplayName').textContent = u.name;
+                    document.getElementById('profRoleBadge').textContent = `${u.role} • ${u.department || 'Campus Community'}`;
+                    document.getElementById('pName').value = u.name;
+                    document.getElementById('pEmail').value = u.email;
+                    document.getElementById('pPhone').value = u.phone || '';
+                    document.getElementById('pDepartment').value = u.department || '';
+                }
+            } catch (err) {
+                Common.showToast(err.message || 'Failed to load profile', 'error');
+            }
+
+            document.getElementById('updateProfileForm').addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const name = document.getElementById('pName').value.trim();
+                const phone = document.getElementById('pPhone').value.trim();
+                const department = document.getElementById('pDepartment').value.trim();
+
+                try {
+                    const res = await API.updateProfile({ name, phone, department });
+                    if (res.success) {
+                        Common.showToast('Profile updated successfully!', 'success');
+                        const updatedUser = { ...Auth.getUser(), name, phone, department };
+                        API.setCurrentUser(updatedUser);
+                        setTimeout(() => location.reload(), 600);
+                    }
+                } catch (err) {
+                    Common.showToast(err.message || 'Update failed', 'error');
+                }
+            });
+
+            document.getElementById('changePasswordForm').addEventListener('submit', async (e) => {
+                e.preventDefault();
+                const currentPassword = document.getElementById('currentPassword').value;
+                const newPassword = document.getElementById('newPassword').value;
+
+                if (newPassword.length < 6) {
+                    Common.showToast('New password must be at least 6 characters.', 'warning');
+                    return;
+                }
+
+                try {
+                    const res = await API.changePassword({ currentPassword, newPassword });
+                    if (res.success) {
+                        Common.showToast('Password changed successfully.', 'success');
+                        document.getElementById('changePasswordForm').reset();
+                    }
+                } catch (err) {
+                    Common.showToast(err.message || 'Password change failed', 'error');
+                }
+            });
+        });
+    </script>
+</body>
+</html>
